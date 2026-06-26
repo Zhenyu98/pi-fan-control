@@ -2,6 +2,8 @@
 
 Date: 2026-06-26
 
+Note: this report records the earlier `50-60 C` target-zone acceptance run. The current service default has since been tightened to `53-58 C`.
+
 ## Scope
 
 Implemented the M2 second-order ARX predictor as the active prediction model for Zone MPC fan control, then ran an 11 minute randomized stress acceptance test on the live Raspberry Pi 5 service.
@@ -170,7 +172,7 @@ Pytest note:
 
 The M2 ARX predictor and Zone MPC controller passed the 11 minute randomized stress acceptance test.
 
-Observed behavior is acceptable for the current conservative 50-60 C zone:
+Observed behavior was acceptable for that conservative 50-60 C acceptance zone:
 
 - Temperature stayed below `62 C`.
 - No full-speed threshold or safety threshold events occurred.

@@ -15,12 +15,13 @@
 
 当前默认策略：
 
-- 目标温度区间：`50-60 C`
+- 目标温度区间：`53-58 C`
 - 稳定起转 PWM：`min_active_pwm=75`
 - 单次 PWM 最大变化：`max_step=20`
 - 满速阈值：`69 C`
 - 安全阈值：`70 C`
 - 模型文件：`/home/pi/fan-control/data/model_arx2_m2.json`
+- 可选只读仪表盘：`http://<raspberry-pi-ip>:8766/`
 
 ## 为什么做这个
 
@@ -56,10 +57,12 @@ python3 /home/pi/fan-control/fan_control.py --dry-run --duration 20
 
 ```bash
 sudo cp /home/pi/fan-control/fan-control.service /etc/systemd/system/fan-control.service
+sudo cp /home/pi/fan-control/fan-control-dashboard.service /etc/systemd/system/fan-control-dashboard.service
 sudo cp /home/pi/fan-control/fan-control-maintenance.service /etc/systemd/system/fan-control-maintenance.service
 sudo cp /home/pi/fan-control/fan-control-maintenance.timer /etc/systemd/system/fan-control-maintenance.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now fan-control.service
+sudo systemctl enable --now fan-control-dashboard.service
 sudo systemctl enable --now fan-control-maintenance.timer
 ```
 
@@ -67,14 +70,22 @@ sudo systemctl enable --now fan-control-maintenance.timer
 
 ```bash
 systemctl status fan-control.service
+systemctl status fan-control-dashboard.service
 journalctl -u fan-control.service -n 50 --no-pager
 systemctl list-timers fan-control-maintenance.timer
+```
+
+局域网访问只读仪表盘：
+
+```text
+http://<raspberry-pi-ip>:8766/
 ```
 
 如果要停用用户态服务，并设置一个安全兜底 PWM：
 
 ```bash
 sudo systemctl disable --now fan-control.service
+sudo systemctl disable --now fan-control-dashboard.service
 sudo systemctl disable --now fan-control-maintenance.timer
 sudo python3 /home/pi/fan-control/fan_safe.py
 ```
@@ -83,14 +94,14 @@ sudo python3 /home/pi/fan-control/fan_safe.py
 
 ### Zone MPC
 
-Zone MPC 不追求把温度死死控制在某一个点，而是控制在一个区间里。默认目标是 `50-60 C`。
+Zone MPC 不追求把温度死死控制在某一个点，而是控制在一个区间里。默认目标是 `53-58 C`。
 
 控制器会枚举一组候选 PWM，预测未来几个周期的温度轨迹，然后给每个候选方案打分。它更喜欢：
 
-- 温度留在 `50-60 C`；
+- 温度留在 `53-58 C`；
 - PWM 尽量低；
 - PWM 变化不要太剧烈；
-- 不出现持续超过 `60 C` 的预测；
+- 不出现持续超过 `58 C` 的预测；
 - 不接近 `69 C` 满速阈值和 `70 C` 安全阈值。
 
 所以它可能比默认策略更早让风扇动起来，但不是为了“更吵”，而是为了避免温度先冲上去再补救。
@@ -116,7 +127,7 @@ T_next =
 
 ## 实测结果
 
-最近一次 11 分钟随机压力测试：
+历史 11 分钟随机压力测试，当时目标区间仍是 `50-60 C`：
 
 ```text
 Run: /home/pi/fan-control/acceptance/random-stress-20260626-123759
@@ -148,6 +159,8 @@ Model: /home/pi/fan-control/data/model_arx2_m2.json
 - `fan_control_core.py`：热模型、预测观察器、Zone MPC 逻辑。
 - `fan_control_shadow.py`：影子学习和安全模型提升。
 - `fan_control_io.py`：sysfs 风扇路径发现和 I/O。
+- `dashboard_server.py`：只读 HTTP 仪表盘 API 和静态文件服务。
+- `dashboard.html`：显示温度、PWM、RPM、负载的实时仪表盘。
 - `fan_safe.py`：systemd 停止后的安全兜底。
 - `collect.py`：采集温度、PWM、负载和 RPM。
 - `fit_model.py`：从采样数据拟合模型。
@@ -156,6 +169,7 @@ Model: /home/pi/fan-control/data/model_arx2_m2.json
 - `evaluate.py`：压力测试和控制脚本资源占用评估。
 - `random_stress_test.py`：随机压力阶段测试。
 - `fan-control.service`：主 systemd 服务模板。
+- `fan-control-dashboard.service`：监听 `8766` 端口的只读仪表盘服务。
 - `fan-control-maintenance.service`：日志和实验产物清理服务。
 - `fan-control-maintenance.timer`：每日清理定时器。
 
@@ -211,6 +225,30 @@ sudo python3 /home/pi/fan-control/fan_control_maintenance.py
 - journal 执行 `journalctl --vacuum-time=14d --vacuum-size=200M`。
 
 注意：journal vacuum 是 systemd-journald 的全局清理，不是只清这个服务。
+
+## 只读仪表盘
+
+仪表盘从 `data/shadow_samples.csv` 读取实时数据，不提供任何 PWM 写接口：
+
+```bash
+sudo systemctl enable --now fan-control-dashboard.service
+curl http://127.0.0.1:8766/api/status
+```
+
+局域网访问：
+
+```text
+http://<raspberry-pi-ip>:8766/
+```
+
+接口：
+
+- `/`：实时 HTML 仪表盘。
+- `/api/status`：最新采样、服务状态、目标温度区间。
+- `/api/latest?minutes=60&max_points=1800`：绘图用最近采样。
+- `/api/summary?hours=4`：温度、PWM、RPM、负载和目标区间统计。
+
+服务支持 `HEAD` 健康检查，不会影响主风扇控制服务。
 
 ## 安全和隐私
 

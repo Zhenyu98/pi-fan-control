@@ -1,6 +1,7 @@
 import sys
 import unittest
 from io import StringIO
+from pathlib import Path
 from unittest.mock import patch
 
 import fan_control
@@ -13,11 +14,19 @@ class CliStandardizationTests(unittest.TestCase):
 
         self.assertEqual(args.control_mode, "zone-mpc")
         self.assertEqual(args.model, "/home/pi/fan-control/data/model_arx2_m2.json")
-        self.assertEqual(args.zone_low, 50.0)
-        self.assertEqual(args.zone_high, 60.0)
+        self.assertEqual(args.zone_low, 53.0)
+        self.assertEqual(args.zone_high, 58.0)
         self.assertEqual(args.max_step, 20)
         self.assertEqual(args.idle_stop, 50.0)
         self.assertEqual(args.log_interval, 30.0)
+
+    def test_systemd_service_uses_safer_zone_target(self):
+        service = Path(__file__).resolve().parents[1] / "fan-control.service"
+        unit = service.read_text(encoding="utf-8")
+
+        self.assertIn("--zone-low 53", unit)
+        self.assertIn("--zone-high 58", unit)
+        self.assertIn("--idle-stop 50", unit)
 
     def test_unsupported_control_mode_is_rejected(self):
         with patch.object(sys, "argv", ["fan_control.py", "--control-mode", "legacy"]):

@@ -30,6 +30,9 @@ data/identification/*/
 # Acceptance raw artifacts; keep top-level curated reports.
 acceptance/*/
 !acceptance/*.md
+acceptance/real_workload_*.md
+acceptance/real_workload_*.json
+docs/assets/zone_mpc_real_workload_*.svg
 
 # OS/editor noise
 .DS_Store

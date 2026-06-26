@@ -51,10 +51,12 @@ Install and start the service:
 
 ```bash
 sudo cp /home/pi/fan-control/fan-control.service /etc/systemd/system/fan-control.service
+sudo cp /home/pi/fan-control/fan-control-dashboard.service /etc/systemd/system/fan-control-dashboard.service
 sudo cp /home/pi/fan-control/fan-control-maintenance.service /etc/systemd/system/fan-control-maintenance.service
 sudo cp /home/pi/fan-control/fan-control-maintenance.timer /etc/systemd/system/fan-control-maintenance.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now fan-control.service
+sudo systemctl enable --now fan-control-dashboard.service
 sudo systemctl enable --now fan-control-maintenance.timer
 ```
 
@@ -62,7 +64,14 @@ Check it:
 
 ```bash
 systemctl status fan-control.service
+systemctl status fan-control-dashboard.service
 journalctl -u fan-control.service -n 50 --no-pager
+```
+
+Open the read-only dashboard from another device on the LAN:
+
+```text
+http://<raspberry-pi-ip>:8766/
 ```
 
 ## Current Product Decision
@@ -73,7 +82,7 @@ The previous single-setpoint controller has been removed from the runtime path. 
 
 Default policy:
 
-- Target zone: `50-60 C`
+- Target zone: `53-58 C`
 - Stable first fan step: `min_active_pwm=75`
 - PWM ramp limit: `max_step=20`
 - Full speed threshold: `69 C`
@@ -105,17 +114,17 @@ Zone MPC evaluates candidate PWM values and rolls the model forward over the pre
 
 It prefers:
 
-- temperatures inside the `50-60 C` zone,
+- temperatures inside the `53-58 C` zone,
 - low PWM,
 - small PWM changes,
-- no sustained predicted violation above `60 C`,
+- no sustained predicted violation above `58 C`,
 - no predicted approach to the `69 C` full-speed threshold.
 
 It also includes a conservative prediction observer. If the model has recently underpredicted temperature, the controller adds a bounded prediction margin, so future MPC scoring becomes more cautious.
 
 ## Measured Result
 
-Latest randomized 11 minute stress test:
+Historical randomized 11 minute stress test with the earlier `50-60 C` zone:
 
 ```text
 Run: /home/pi/fan-control/acceptance/random-stress-20260626-123759
@@ -147,6 +156,8 @@ Detailed report:
 - `fan_control_core.py`: thermal models, ARX2 fitting, prediction observer, Zone MPC.
 - `fan_control_shadow.py`: shadow learning and safe model promotion.
 - `fan_control_io.py`: sysfs discovery and fan I/O.
+- `dashboard_server.py`: read-only HTTP dashboard API and static file server.
+- `dashboard.html`: live dashboard for temperature, PWM, RPM, and load.
 - `fan_safe.py`: systemd stop-post fallback.
 - `collect.py`: data collection.
 - `fit_model.py`: ARX2 model fitting from collected samples.
@@ -155,6 +166,7 @@ Detailed report:
 - `evaluate.py`: pressure test and controller overhead measurement.
 - `random_stress_test.py`: randomized pressure phases with prediction metrics.
 - `fan-control.service`: systemd service template.
+- `fan-control-dashboard.service`: read-only dashboard service on port `8766`.
 - `fan-control-maintenance.service`: cleanup service for journal and experiment artifacts.
 - `fan-control-maintenance.timer`: daily cleanup timer.
 
@@ -307,10 +319,12 @@ Install:
 
 ```bash
 sudo cp /home/pi/fan-control/fan-control.service /etc/systemd/system/fan-control.service
+sudo cp /home/pi/fan-control/fan-control-dashboard.service /etc/systemd/system/fan-control-dashboard.service
 sudo cp /home/pi/fan-control/fan-control-maintenance.service /etc/systemd/system/fan-control-maintenance.service
 sudo cp /home/pi/fan-control/fan-control-maintenance.timer /etc/systemd/system/fan-control-maintenance.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now fan-control.service
+sudo systemctl enable --now fan-control-dashboard.service
 sudo systemctl enable --now fan-control-maintenance.timer
 ```
 
@@ -318,6 +332,7 @@ Check:
 
 ```bash
 systemctl status fan-control.service
+systemctl status fan-control-dashboard.service
 journalctl -u fan-control.service -n 50 --no-pager
 systemctl list-timers fan-control-maintenance.timer
 ```
@@ -326,9 +341,34 @@ Disable the user-space service and set a safe fallback PWM:
 
 ```bash
 sudo systemctl disable --now fan-control.service
+sudo systemctl disable --now fan-control-dashboard.service
 sudo systemctl disable --now fan-control-maintenance.timer
 sudo python3 /home/pi/fan-control/fan_safe.py
 ```
+
+## Dashboard
+
+The optional dashboard is a read-only HTTP view of local controller data:
+
+```bash
+sudo systemctl enable --now fan-control-dashboard.service
+curl http://127.0.0.1:8766/api/status
+```
+
+Open it from the LAN:
+
+```text
+http://<raspberry-pi-ip>:8766/
+```
+
+Endpoints:
+
+- `/`: live dashboard HTML.
+- `/api/status`: latest sample, service state, configured target zone.
+- `/api/latest?minutes=60&max_points=1800`: recent samples for plotting.
+- `/api/summary?hours=4`: aggregate temperature, PWM, RPM, load, and zone metrics.
+
+The dashboard reads `data/shadow_samples.csv`, supports `HEAD` health checks, and never writes PWM.
 
 ## Kernel Fan Policy
 

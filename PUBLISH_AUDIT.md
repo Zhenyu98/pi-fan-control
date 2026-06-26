@@ -12,6 +12,8 @@ The publishable product is:
 Raspberry Pi 5 advanced fan controller using Zone MPC
 ```
 
+Current default target zone is `53-58 C`.
+
 ## Local Installation Status
 
 Installed and enabled on this Raspberry Pi:
@@ -43,6 +45,7 @@ Ready to publish:
 - Source code renamed to `fan_control*`.
 - Runtime entrypoint is `fan_control.py`.
 - systemd unit is `fan-control.service`.
+- Read-only dashboard is included as `dashboard_server.py`, `dashboard.html`, and `fan-control-dashboard.service`.
 - Maintenance unit and timer are included.
 - README explains the product story and operating model.
 - `README_zh.md` provides the Simplified Chinese project guide.
@@ -75,6 +78,7 @@ The following are intentionally not for GitHub:
 - runtime shadow data: `data/shadow_samples.csv`
 - local evaluation output: `data/evaluation-*.json`
 - raw acceptance run directories: `acceptance/*/`
+- generated real-workload dashboard reports: `acceptance/real_workload_*`, `docs/assets/zone_mpc_real_workload_*.svg`
 - raw identification samples and metadata: `data/identification/*/samples.csv`, `summary.json`
 - ad-hoc logs and pid files
 
@@ -85,6 +89,9 @@ Curated publishable artifacts:
 - `PUBLISH_AUDIT.md`
 - `agent-setup.md`
 - `LICENSE`
+- `dashboard.html`
+- `dashboard_server.py`
+- `fan-control-dashboard.service`
 - `acceptance/arx2_zone_mpc_acceptance_20260626.md`
 - `data/model_arx2_m2.json`
 
@@ -95,8 +102,9 @@ Fresh checks:
 ```text
 python3 -m unittest discover -s /home/pi/fan-control/tests
 python3 -m py_compile /home/pi/fan-control/*.py
-systemd-analyze verify /home/pi/fan-control/fan-control.service /home/pi/fan-control/fan-control-maintenance.service /home/pi/fan-control/fan-control-maintenance.timer
+systemd-analyze verify /home/pi/fan-control/fan-control.service /home/pi/fan-control/fan-control-dashboard.service /home/pi/fan-control/fan-control-maintenance.service /home/pi/fan-control/fan-control-maintenance.timer
 python3 /home/pi/fan-control/fan_control.py --dry-run --duration 4
+curl http://127.0.0.1:8766/api/status
 ```
 
 Results:
@@ -105,6 +113,7 @@ Results:
 - Python compile check: passed.
 - systemd unit verification: passed.
 - dry-run: passed.
+- dashboard unit and HTTP smoke test: passed with `zone.low_c=53.0` and `zone.high_c=58.0`.
 
 Pytest note:
 
@@ -112,7 +121,7 @@ Pytest note:
 
 ## Next GitHub Step
 
-After the user confirms the update packet, push the documentation remediation commit:
+After the user confirms the update packet, push the control-target and dashboard integration commit:
 
 ```bash
 cd /home/pi/fan-control

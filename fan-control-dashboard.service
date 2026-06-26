@@ -1,0 +1,18 @@
+[Unit]
+Description=Raspberry Pi 5 Fan Control Dashboard
+After=network-online.target fan-control.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/pi/fan-control/dashboard_server.py --host 0.0.0.0 --port 8766 --csv /home/pi/fan-control/data/shadow_samples.csv --static /home/pi/fan-control --zone-low 53 --zone-high 58
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fan-control-dashboard
+LogRateLimitIntervalSec=60
+LogRateLimitBurst=120
+
+[Install]
+WantedBy=multi-user.target
