@@ -1,5 +1,7 @@
 # Raspberry Pi 5 Advanced Fan Controller
 
+[简体中文](README_zh.md) | English
+
 A Raspberry Pi 5 advanced fan controller using Zone MPC.
 
 Instead of waiting for the SoC to cross a few fixed temperature thresholds, this project predicts the near-future thermal trajectory and chooses a PWM that keeps the machine inside a target temperature zone.
@@ -28,6 +30,40 @@ with the least fan effort?
 ```
 
 This controller answers that question every control interval.
+
+## Quick Install
+
+Clone the project to the expected runtime path:
+
+```bash
+cd /home/pi
+git clone https://github.com/Zhenyu98/pi-fan-control.git fan-control
+cd /home/pi/fan-control
+```
+
+Run a no-write dry check first:
+
+```bash
+python3 /home/pi/fan-control/fan_control.py --dry-run --duration 20
+```
+
+Install and start the service:
+
+```bash
+sudo cp /home/pi/fan-control/fan-control.service /etc/systemd/system/fan-control.service
+sudo cp /home/pi/fan-control/fan-control-maintenance.service /etc/systemd/system/fan-control-maintenance.service
+sudo cp /home/pi/fan-control/fan-control-maintenance.timer /etc/systemd/system/fan-control-maintenance.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now fan-control.service
+sudo systemctl enable --now fan-control-maintenance.timer
+```
+
+Check it:
+
+```bash
+systemctl status fan-control.service
+journalctl -u fan-control.service -n 50 --no-pager
+```
 
 ## Current Product Decision
 
@@ -286,12 +322,12 @@ journalctl -u fan-control.service -n 50 --no-pager
 systemctl list-timers fan-control-maintenance.timer
 ```
 
-Disable and return to the kernel fan policy:
+Disable the user-space service and set a safe fallback PWM:
 
 ```bash
 sudo systemctl disable --now fan-control.service
 sudo systemctl disable --now fan-control-maintenance.timer
-printf '1\n' | sudo tee /sys/devices/platform/cooling_fan/hwmon/hwmon2/pwm1_enable
+sudo python3 /home/pi/fan-control/fan_safe.py
 ```
 
 ## Kernel Fan Policy
@@ -301,3 +337,46 @@ The current `/boot/firmware/config.txt` does not contain active custom `dtparam=
 While `fan-control.service` is running, the user-space controller owns PWM. If the service stops, `ExecStopPost` runs `fan_safe.py`, which sets a safe PWM based on current temperature.
 
 If custom `fan_temp*` entries are added later, treat them as a fallback policy rather than the primary controller.
+
+## Safety And Privacy
+
+- The controller auto-discovers the Raspberry Pi fan `hwmon` device instead of depending on a fixed `hwmonN` path.
+- `fan_safe.py` is used as a systemd stop-post fallback so service shutdown does not leave the fan in a risky state.
+- `safety_temp` forces full-speed cooling before the SoC reaches a dangerous range.
+- Shadow learning records local thermal samples only and does not upload data.
+- Raw logs, samples, and experiment outputs are ignored by git and are not part of the public release.
+
+## FAQ
+
+**Will it be quieter than the default kernel fan policy?**
+
+Usually the fan starts earlier, but Zone MPC tries to use the lowest PWM that still keeps the temperature inside the target zone. The result should be smoother temperature control rather than simply louder fan behavior.
+
+**Does online learning directly control the fan?**
+
+No. Shadow learning can propose a better model only after safety checks. The active controller keeps using the current validated model until a candidate passes conservative promotion rules.
+
+**Can I keep `dtparam=fan_temp*` in `config.txt`?**
+
+Treat those entries as fallback policy. While `fan-control.service` is running, user-space owns PWM. If the service stops, the fallback and `fan_safe.py` protect the machine.
+
+**Does this need network access?**
+
+No runtime network access is required.
+
+## Roadmap
+
+- Broaden identification data across more ambient temperatures and cases.
+- Add optional RPM-aware model validation for boards where RPM readings are reliable.
+- Provide a packaged installer that can migrate from the current manual systemd copy flow.
+- Add a concise dashboard or text UI for live temperature, PWM, RPM, and prediction margin.
+
+## License
+
+This project is released under the MIT License. See [LICENSE](LICENSE).
+
+## Acknowledgements
+
+- [Raspberry Pi documentation](https://www.raspberrypi.com/documentation/) for platform and configuration references.
+- [systemd](https://systemd.io/) for service supervision and journal integration.
+- [stress-ng](https://github.com/ColinIanKing/stress-ng) for stress-test workloads used during validation.

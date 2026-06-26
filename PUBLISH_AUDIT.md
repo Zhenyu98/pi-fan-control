@@ -45,15 +45,18 @@ Ready to publish:
 - systemd unit is `fan-control.service`.
 - Maintenance unit and timer are included.
 - README explains the product story and operating model.
+- `README_zh.md` provides the Simplified Chinese project guide.
+- `agent-setup.md` is bilingual and optimized for agent-assisted installation.
+- `LICENSE` is included.
 - `.gitignore` excludes runtime data, raw captures, caches, logs, and generated files.
 
-Current status before pushing from this machine:
+Current remote status:
 
 - `/home/pi/fan-control` is initialized as a local git repository on branch `main`.
 - GitHub CLI `gh` is installed and authenticated as `Zhenyu98`.
-- No GitHub remote is configured locally.
-- The target repository full name still needs explicit confirmation.
-- `Zhenyu98/pi-fan-control` is the current target repository name pending final confirmation.
+- Remote `origin` points to `https://github.com/Zhenyu98/pi-fan-control.git`.
+- `Zhenyu98/pi-fan-control` is public.
+- A documentation remediation update is pending confirmation before push.
 
 ## Sensitive Data Check
 
@@ -61,7 +64,8 @@ Searched source/docs for common token, secret, password, API key, GitHub PAT, Op
 
 Result:
 
-- No matches in source/docs after excluding binary/cache/raw CSV/log artifacts.
+- No real secrets, tokens, private keys, personal emails, or credential values were found in source/docs after excluding binary/cache/raw CSV/log artifacts.
+- Expected false positives remain in `.gitignore`, safety documentation, and code that references `SUDO_UID`, `SUDO_GID`, and `ACCEPTANCE_RUN_DIR`.
 
 ## Artifact Policy
 
@@ -77,7 +81,10 @@ The following are intentionally not for GitHub:
 Curated publishable artifacts:
 
 - `README.md`
+- `README_zh.md`
 - `PUBLISH_AUDIT.md`
+- `agent-setup.md`
+- `LICENSE`
 - `acceptance/arx2_zone_mpc_acceptance_20260626.md`
 - `data/model_arx2_m2.json`
 
@@ -105,16 +112,9 @@ Pytest note:
 
 ## Next GitHub Step
 
-To publish through GitHub, provide the target repository name in `owner/repo` form, or initialize this directory as a git checkout connected to that remote.
-
-Recommended local publish sequence after repository selection:
+After the user confirms the update packet, push the documentation remediation commit:
 
 ```bash
 cd /home/pi/fan-control
-git init
-git branch -M main
-git remote add origin git@github.com:OWNER/REPO.git
-git add .gitignore README.md PUBLISH_AUDIT.md agent-setup.md *.py *.service *.timer tests acceptance/arx2_zone_mpc_acceptance_20260626.md data/model_arx2_m2.json
-git commit -m "Prepare fan-control for publication"
-git push -u origin main
+git push origin main
 ```
