@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environments
+.env
+.env.*
+.venv/
+venv/
+
+# Runtime logs
+*.log
+*.run.log
+*.pid
+random_stress_latest.log
+
+# Fan-control runtime data
+data/shadow_samples.csv
+data/shadow_samples.csv.1
+data/samples.csv
+data/evaluation-*.json
+
+# Raw identification captures; keep only the selected deployed model.
+data/identification/*/
+
+# Acceptance raw artifacts; keep top-level curated reports.
+acceptance/*/
+!acceptance/*.md
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

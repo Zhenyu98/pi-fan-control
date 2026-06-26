@@ -1,0 +1,20 @@
+[Unit]
+Description=Raspberry Pi 5 Fan ARX2 Zone MPC Controller
+After=multi-user.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/pi/fan-control/fan_control.py --model /home/pi/fan-control/data/model_arx2_m2.json --control-mode zone-mpc --zone-low 50 --zone-high 60 --full-temp 69 --idle-stop 50 --max-step 20 --min-active-pwm 75 --safety-temp 70 --safety-pwm 255 --shadow-learn --log-interval 30
+ExecStopPost=/usr/bin/python3 /home/pi/fan-control/fan_safe.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fan-control
+LogRateLimitIntervalSec=60
+LogRateLimitBurst=120
+
+[Install]
+WantedBy=multi-user.target

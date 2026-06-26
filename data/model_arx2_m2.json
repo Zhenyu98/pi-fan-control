@@ -1,0 +1,24 @@
+{
+  "schema": "arx2",
+  "feature_names": [
+    "temp_c",
+    "temp_prev_c",
+    "pwm",
+    "pwm_prev",
+    "load",
+    "load_prev",
+    "bias"
+  ],
+  "coefficients": [
+    0.5567670422114871,
+    0.4184214650812279,
+    -0.0014623726815126798,
+    0.000059901610051346036,
+    0.681352157701699,
+    -0.15616360945374425,
+    1.2924654171170944
+  ],
+  "pwm_coefficient": -0.0014024710714613338,
+  "load_coefficient": 0.5251885482479548,
+  "source": "data/identification/20260626-105237/model_comparison.json"
+}
