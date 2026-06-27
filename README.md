@@ -143,6 +143,10 @@ T_next =
 
 Using previous temperature, previous PWM, and previous load makes the model better at short rollout prediction than a simple first-order model. This matters because MPC decisions are based on a horizon, not just one immediate step.
 
+How well does it actually predict? On a held-out randomized-stress run the model was not fit on, the one-step prediction tracks the measured SoC temperature with a mean absolute error of about `0.66 C`. Because MPC plans over a horizon, the right-hand panel also shows how rollout error grows with the prediction length, from about `0.7 C` at one step to about `1.9 C` at twelve steps (~24 s ahead).
+
+![ARX2 predictor accuracy: one-step prediction tracks measured temperature within ~0.66 C on a held-out run, with rollout error growing gradually with horizon](docs/assets/model_prediction_accuracy.svg)
+
 ### Zone MPC Controller
 
 Zone MPC evaluates candidate PWM values and rolls the model forward over the prediction horizon.
