@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title id="title">Raspberry Pi 5 Predictive Zone MPC Fan Control</title>
+  <desc id="desc">Zone MPC keeps the same mean temperature while cutting theoretical fan-side power by about 28.5 percent.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="0.55" stop-color="#0f2a2e"/>
+      <stop offset="1" stop-color="#0d3b3a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#fb923c"/>
+    </linearGradient>
+    <linearGradient id="zone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="420" rx="20" fill="url(#bg)"/>
+
+  <!-- decorative thermal trace -->
+  <rect x="0" y="250" width="1200" height="90" fill="url(#zone)"/>
+  <path d="M0 300 C 120 300 150 262 260 268 S 430 318 540 300 S 720 250 840 272 S 1010 312 1100 286 1200 290 1200 290"
+        fill="none" stroke="#2dd4bf" stroke-width="3" stroke-opacity="0.55" stroke-linecap="round"/>
+  <path d="M0 312 C 140 312 180 296 300 300 S 470 322 600 310 S 780 290 900 302 S 1060 318 1200 306"
+        fill="none" stroke="#fb923c" stroke-width="2.5" stroke-opacity="0.35" stroke-linecap="round"/>
+
+  <!-- eyebrow -->
+  <rect x="64" y="56" width="10" height="10" rx="2" fill="url(#accent)"/>
+  <text x="86" y="65" font-size="16" font-weight="600" fill="#94a3b8" letter-spacing="2">RASPBERRY PI 5 · ADVANCED FAN CONTROL</text>
+
+  <!-- title -->
+  <text x="63" y="128" font-size="52" font-weight="800" fill="#f8fafc">Predictive Zone MPC</text>
+  <text x="63" y="186" font-size="52" font-weight="800" fill="#f8fafc">fan control</text>
+  <text x="64" y="226" font-size="18" fill="#cbd5e1">Second-order ARX predictor plans the next steps and holds the SoC inside a target zone.</text>
+
+  <!-- hero stat -->
+  <g text-anchor="end">
+    <text x="1136" y="108" font-size="21" font-weight="600" fill="#cbd5e1">theoretical fan-side power</text>
+    <text x="1140" y="205" font-size="104" font-weight="800" fill="#2dd4bf">&#8722;28.5%</text>
+    <text x="1136" y="240" font-size="19" fill="#94a3b8">at the same mean temperature</text>
+  </g>
+
+  <!-- stat chips -->
+  <g transform="translate(64 296)" font-size="15">
+    <g transform="translate(0 0)">
+      <rect width="332" height="86" rx="12" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
+      <text x="20" y="34" fill="#94a3b8">Mean temperature</text>
+      <text x="20" y="68" font-size="26" font-weight="700" fill="#f8fafc">57.9&#176;C <tspan font-size="15" font-weight="500" fill="#2dd4bf">· unchanged</tspan></text>
+    </g>
+    <g transform="translate(352 0)">
+      <rect width="332" height="86" rx="12" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
+      <text x="20" y="34" fill="#94a3b8">Average fan RPM</text>
+      <text x="20" y="68" font-size="26" font-weight="700" fill="#f8fafc">5534 <tspan fill="#94a3b8" font-weight="500">&#8594;</tspan> 4948</text>
+    </g>
+  </g>
+</svg>

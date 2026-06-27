@@ -2,6 +2,10 @@
 
 [简体中文](README_zh.md) | English
 
+<p align="center">
+  <img src="docs/assets/hero_zone_mpc.svg" alt="Predictive Zone MPC fan control: about 28.5% lower theoretical fan-side power at the same mean temperature" width="100%">
+</p>
+
 A Raspberry Pi 5 advanced fan controller using Zone MPC.
 
 Instead of waiting for the SoC to cross a few fixed temperature thresholds, this project predicts the near-future thermal trajectory and chooses a PWM that keeps the machine inside a target temperature zone.
@@ -179,6 +183,7 @@ This project contributes a practical predictive fan-control path for Raspberry P
 - `compare_models.py`: model comparison report generator.
 - `evaluate.py`: pressure test and controller overhead measurement.
 - `random_stress_test.py`: randomized pressure phases with prediction metrics.
+- `ab_mpc_test.py`: side-by-side AB test that drives Zone MPC, constant MPC, and the scaled official ladder under the same load seed, and renders the comparison figures.
 - `fan-control.service`: systemd service template.
 - `fan-control-dashboard.service`: read-only dashboard service on port `8766`.
 - `fan-control-maintenance.service`: cleanup service for journal and experiment artifacts.

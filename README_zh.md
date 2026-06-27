@@ -2,6 +2,10 @@
 
 [English](README.md) | 简体中文
 
+<p align="center">
+  <img src="docs/assets/hero_zone_mpc_zh.svg" alt="预测式 Zone MPC 风扇控制：温度持平的前提下，理论风扇侧功耗约降低 28.5%" width="100%">
+</p>
+
 一个用于 Raspberry Pi 5 官方风扇的高级温控服务，使用 Zone MPC 让风扇策略更主动、更低温、更可控。
 
 它不是等温度越过几个固定阈值后再分段调速，而是根据当前温度、PWM、负载和短期历史预测接下来的温度轨迹，然后选择一个尽量低的 PWM，把机器维持在目标温度区间内。
@@ -163,15 +167,15 @@ T_next =
 - 风扇不再只是温度越过阈值后被动反应，而是根据未来温度轨迹提前规划。
 - 目标是一个温度区间，而不是一个固定点，因此更容易调成自己想要的“温度/噪声”平衡。
 - 通过预测裕度和高温持续越界惩罚，降低模型低估温度导致冲高的风险。
-- 影子学习可以长期收集数据、更新候选模型，但未经验证的模型不会直接控制风扇。
-- 提供可复现实机 AB 测试脚本，用来比较 Zone MPC、constant MPC 和官方阶梯策略。
+- 旁路学习会在后台持续采集数据、更新候选模型，但未经验证的模型绝不会直接接管风扇。
+- 提供可复现的实机 AB 测试脚本，方便对比 Zone MPC、constant MPC 和官方阶梯策略。
 - 在当前温度目标接近的 AB 测试中，Zone MPC 的风扇侧理论功耗约节省 `28.5%`，同时控制脚本资源占用几乎无感。
 
 ## 文件说明
 
 - `fan_control.py`：实时 Zone MPC 风扇控制服务入口。
 - `fan_control_core.py`：热模型、预测观察器、Zone MPC 逻辑。
-- `fan_control_shadow.py`：影子学习和安全模型提升。
+- `fan_control_shadow.py`：旁路学习与模型的安全升级。
 - `fan_control_io.py`：sysfs 风扇路径发现和 I/O。
 - `dashboard_server.py`：只读 HTTP 仪表盘 API 和静态文件服务。
 - `dashboard.html`：显示温度、PWM、RPM、负载的实时仪表盘。
@@ -182,6 +186,7 @@ T_next =
 - `compare_models.py`：模型对比报告。
 - `evaluate.py`：压力测试和控制脚本资源占用评估。
 - `random_stress_test.py`：随机压力阶段测试。
+- `ab_mpc_test.py`：在同一负载随机种子下并行跑 Zone MPC、constant MPC 和官方缩放阶梯，并生成对比图表的 AB 测试脚本。
 - `fan-control.service`：主 systemd 服务模板。
 - `fan-control-dashboard.service`：监听 `8766` 端口的只读仪表盘服务。
 - `fan-control-maintenance.service`：日志和实验产物清理服务。
@@ -189,17 +194,17 @@ T_next =
 
 脚本启动时会自动扫描 `/sys/class/hwmon/hwmon*/name == pwmfan`，不依赖固定 `hwmonN` 编号。
 
-## 影子学习
+## 旁路学习（shadow learning）
 
-服务默认带 `--shadow-learn`。
+服务默认开启 `--shadow-learn`。
 
-影子学习不会直接控制风扇。实时控制器继续使用当前稳定模型，后台记录本地样本到：
+旁路学习不会直接控制风扇：实时控制器始终使用当前的稳定模型，学习过程只在后台把本地样本记录到：
 
 ```text
 /home/pi/fan-control/data/shadow_samples.csv
 ```
 
-后台会用滚动窗口拟合候选模型。只有满足这些条件才可能替换当前模型：
+后台会用滚动窗口拟合候选模型。只有同时满足以下条件，才可能替换当前模型：
 
 - 样本足够；
 - 温度、PWM、负载变化足够；
@@ -223,7 +228,7 @@ python3 /home/pi/fan-control/fan_control.py --log-interval 30
 - PWM 变化；
 - 预测持续越界；
 - 满速或安全策略触发；
-- 影子学习候选模型通过或被拒绝。
+- 旁路学习的候选模型被采纳或被拒绝。
 
 清理工具：
 
@@ -269,8 +274,8 @@ http://<raspberry-pi-ip>:8766/
 - 控制器自动发现风扇 hwmon 路径，避免重启后 `hwmonN` 变化导致写错路径。
 - `fan_safe.py` 作为 systemd `ExecStopPost` 兜底，避免服务退出后风扇停在危险状态。
 - `safety_temp` 会在高温时强制满速。
-- 影子学习只记录本机热数据，不上传网络。
-- raw 样本、日志、运行产物和缓存都被 `.gitignore` 排除，不属于公开发布范围。
+- 旁路学习只记录本机热数据，不上传网络。
+- 原始样本、日志、运行产物和缓存都已被 `.gitignore` 排除，不属于公开发布范围。
 
 ## 常见问题
 
@@ -278,9 +283,9 @@ http://<raspberry-pi-ip>:8766/
 
 不保证。它的目标是更主动、更平滑、更可控。风扇可能更早启动，但 Zone MPC 会在满足温度目标的前提下尽量降低 PWM，不是简单满速压温度。
 
-**影子学习会不会突然用一个坏模型控制风扇？**
+**旁路学习会不会突然换上一个坏模型来控制风扇？**
 
-不会。在线学习是影子模式，候选模型必须通过样本量、系数方向、高温段误差和预测改善等检查，才会被提升。
+不会。在线学习全程处于旁路模式，候选模型必须通过样本量、系数方向、高温段误差、预测精度提升等多项检查，才会被采纳。
 
 **还能用 `dtparam=fan_temp*` 吗？**
 
