@@ -10,12 +10,12 @@ A Raspberry Pi 5 advanced fan controller using Zone MPC.
 
 Instead of waiting for the SoC to cross a few fixed temperature thresholds, this project predicts the near-future thermal trajectory and chooses a PWM that keeps the machine inside a target temperature zone.
 
-The user-visible result is a fan strategy that is more active, cooler, and more controllable:
+The user-visible result is a fan strategy that plans ahead and spends fan effort more deliberately. On the 10-minute AB test on this Pi (see [Measured Result](#measured-result)):
 
-- The temperature curve is smoother and less likely to overshoot.
-- The fan may start earlier, but it does not have to be louder overall.
-- The controller uses negligible CPU and memory on the Pi 5.
-- Within the temperature target, Zone MPC prefers the lowest PWM cost that still protects the thermal zone.
+- At a matched average temperature (~`57.9 C`), Zone MPC ran at lower average and much lower median fan RPM than the scaled official ladder (median `3647` vs `5816` RPM) — quieter on average for the same cooling.
+- Controller CPU and memory cost on the Pi 5 is negligible (~`0.65 s` of CPU over `600 s`).
+- Within the target zone it prefers the lowest PWM that still protects the zone, and idles the fan when the predicted trajectory stays cool.
+- It does not eliminate transient overshoot: peak temperature under sudden load bursts was similar to the baseline (`62.2` vs `61.7 C`), because workload spikes are exogenous and cannot be predicted from thermal history.
 
 Implementation standard:
 
@@ -147,6 +147,8 @@ How well does it actually predict? On a held-out randomized-stress run the model
 
 ![ARX2 predictor accuracy: one-step prediction tracks measured temperature within ~0.66 C on a held-out run, with rollout error growing gradually with horizon](docs/assets/model_prediction_accuracy.svg)
 
+Is `0.66 C` large? It is close to the floor set by the hardware, not a sign of a weak model. The Pi's thermal sensor only resolves about `0.55 C` — every logged reading sits on a 0.55 °C grid — so rounding to the nearest sensor tick alone costs about `0.27 C` on average. For comparison, a naive "next = current" persistence predictor scores the same `0.64 C` MAE on this run, and the model's error is concentrated almost entirely on the few steps where CPU load suddenly changes (`1.56 C` on load-change steps vs `0.62 C` on steady steps). In other words, the one-step error is dominated by sensor quantization and unpredictable load steps rather than model bias. The model earns its value over the rollout horizon and by reasoning about the effect of changing PWM, which a persistence guess cannot do.
+
 ### Zone MPC Controller
 
 Zone MPC evaluates candidate PWM values and rolls the model forward over the prediction horizon.
@@ -171,6 +173,7 @@ This project contributes a practical predictive fan-control path for Raspberry P
 - Shadow learning that can improve the model without letting unvalidated models directly control the fan.
 - A public, repeatable AB test script for comparing Zone MPC, constant MPC, and official-step policies.
 - Evidence that, at a similar thermal target, Zone MPC can reduce fan-side theoretical power by about `28.5%` in the current AB run while keeping controller CPU overhead effectively negligible.
+- A fast, low-cost educational project: an end-to-end ARX system identification + Zone MPC loop running on real `$10`-class hardware, with held-out prediction metrics and reproducible AB scripts — a compact, hands-on case study for anyone who already understands MPC and wants to see it applied on a physical plant.
 
 ## Files
 
@@ -428,7 +431,7 @@ If custom `fan_temp*` entries are added later, treat them as a fallback policy r
 
 **Will it be quieter than the default kernel fan policy?**
 
-Usually the fan starts earlier, but Zone MPC tries to use the lowest PWM that still keeps the temperature inside the target zone. The result should be smoother temperature control rather than simply louder fan behavior.
+Not guaranteed. In the AB test on this Pi, at a matched average temperature Zone MPC used lower average and much lower median RPM than the scaled official ladder, so on that run it was quieter on average for the same cooling. But the stock policy can always be colder by simply running the fan harder, and during sudden load bursts Zone MPC's fan speed can still rise sharply. The goal is to spend fan effort where the predicted trajectory needs it, not to be unconditionally quiet.
 
 **Does online learning directly control the fan?**
 
@@ -444,6 +447,7 @@ No runtime network access is required.
 
 ## Roadmap
 
+- **Anticipatory pre-cooling before known heavy workloads, to bank thermal margin.** Today the controller is reactive-predictive: it only spins up after load and temperature start rising, and its MPC rollout assumes future load equals the current load, so it cannot pre-cool for a task that has not started yet. The thermal model already takes load as a rollout input, so the architecture is ready — what is missing is a short *future-load forecast*. Feeding one in (an explicit "job starting" signal from the workload, cron/systemd-timer awareness of scheduled jobs, or a learned workload predictor built on the existing shadow samples) would let MPC raise PWM early and enter a heavy task with extra stability margin instead of reacting after the temperature climbs.
 - Broaden identification data across more ambient temperatures and cases.
 - Add optional RPM-aware model validation for boards where RPM readings are reliable.
 - Provide a packaged installer that can migrate from the current manual systemd copy flow.
