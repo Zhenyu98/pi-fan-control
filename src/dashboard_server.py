@@ -15,7 +15,7 @@ from statistics import mean
 from urllib.parse import parse_qs, urlparse
 
 DEFAULT_CSV = Path("/home/pi/fan-control/data/shadow_samples.csv")
-DEFAULT_STATIC = Path("/home/pi/fan-control")
+DEFAULT_STATIC = Path(__file__).resolve().parent
 DEFAULT_ZONE_LOW_C = 53.0
 DEFAULT_ZONE_HIGH_C = 58.0
 

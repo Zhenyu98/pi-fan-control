@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /home/pi/fan-control/dashboard_server.py --host 0.0.0.0 --port 8766 --csv /home/pi/fan-control/data/shadow_samples.csv --static /home/pi/fan-control --zone-low 53 --zone-high 58
+ExecStart=/usr/bin/python3 /home/pi/fan-control/src/dashboard_server.py --host 0.0.0.0 --port 8766 --csv /home/pi/fan-control/data/shadow_samples.csv --static /home/pi/fan-control/src --zone-low 53 --zone-high 58
 Restart=always
 RestartSec=5
 StandardOutput=journal

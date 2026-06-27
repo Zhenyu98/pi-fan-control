@@ -41,6 +41,37 @@
 
 这就是 Zone MPC 的作用。
 
+## 实测结果
+
+当前公开展示使用一组 Raspberry Pi 5 上的真实 10 分钟 AB 测试：
+
+- 两组使用同一个随机 CPU 负载 seed；
+- 初始温度差：`0.55 C`；
+- 目标温度区间：`53-58 C`；
+- 对照组：官方阶梯策略，并把 PWM 整体缩放到 `75%`，让平均温度尽量接近 Zone MPC；
+- 原始 CSV/JSON 日志不进入仓库，README 只保留精选图表。
+
+![官方缩放阶梯策略与 Zone MPC 的 AB 曲线](docs/assets/scaled_official_vs_zone_mpc_curves.svg)
+
+![风扇输出和理论风扇侧功耗节省摘要](docs/assets/readme_power_savings_summary.svg)
+
+| 指标 | 官方阶梯 75% PWM | Zone MPC |
+|---|---:|---:|
+| 平均温度 | `57.88 C` | `57.99 C` |
+| 峰值温度 | `61.70 C` | `62.25 C` |
+| 高于 `58 C` 的时间 | `287.71 s` | `268.76 s` |
+| 平均 PWM | `158.64` | `152.13` |
+| 平均 RPM | `5533.54` | `4948.01` |
+| 中位 RPM | `5816` | `3647` |
+| 600 秒控制器 CPU 时间 | `0.2351 s` | `0.6536 s` |
+
+按照风扇常见近似 `风扇功耗 ~= RPM^3` 估算：
+
+- 与平均温度接近的官方 75% PWM 阶梯相比，Zone MPC 的平均风扇侧功耗指数约从 `100%` 降到 `71.5%`，理论风扇侧节省约 `28.5%`。
+- 与未缩放的原始官方阶梯相比，Zone MPC 平均 RPM 是 `4715` vs `7219`，理论风扇侧节省约 `72%`。这个对比不如上面的 75% 阶梯公平，因为原始官方阶梯更冷，但也明显更高转。
+
+这不是整机功耗电表结果，而是基于实测 RPM 的风扇侧理论估算。它适合用来比较温控策略是否在类似温度目标下减少了风扇输出。
+
 ## 快速安装
 
 建议安装到固定路径 `/home/pi/fan-control`，因为 systemd service 默认使用这个路径：
@@ -54,7 +85,7 @@ cd /home/pi/fan-control
 先运行不写 PWM 的 dry-run：
 
 ```bash
-python3 /home/pi/fan-control/fan_control.py --dry-run --duration 20
+python3 /home/pi/fan-control/src/fan_control.py --dry-run --duration 20
 ```
 
 确认能识别温度和风扇路径后，再安装服务：
@@ -91,7 +122,7 @@ http://<raspberry-pi-ip>:8766/
 sudo systemctl disable --now fan-control.service
 sudo systemctl disable --now fan-control-dashboard.service
 sudo systemctl disable --now fan-control-maintenance.timer
-sudo python3 /home/pi/fan-control/fan_safe.py
+sudo python3 /home/pi/fan-control/src/fan_safe.py
 ```
 
 ## 工作原理
@@ -129,37 +160,6 @@ T_next =
 
 控制器还带有保守预测观察器：如果最近模型低估温度，它会加入最多 `3 C` 的预测裕度，让 MPC 更谨慎。
 
-## 实测结果
-
-当前公开展示使用一组 Raspberry Pi 5 上的真实 10 分钟 AB 测试：
-
-- 两组使用同一个随机 CPU 负载 seed；
-- 初始温度差：`0.55 C`；
-- 目标温度区间：`53-58 C`；
-- 对照组：官方阶梯策略，并把 PWM 整体缩放到 `75%`，让平均温度尽量接近 Zone MPC；
-- 原始 CSV/JSON 日志不进入仓库，README 只保留精选图表。
-
-![官方缩放阶梯策略与 Zone MPC 的 AB 曲线](docs/assets/scaled_official_vs_zone_mpc_curves.svg)
-
-![风扇输出和理论风扇侧功耗节省摘要](docs/assets/readme_power_savings_summary.svg)
-
-| 指标 | 官方阶梯 75% PWM | Zone MPC |
-|---|---:|---:|
-| 平均温度 | `57.88 C` | `57.99 C` |
-| 峰值温度 | `61.70 C` | `62.25 C` |
-| 高于 `58 C` 的时间 | `287.71 s` | `268.76 s` |
-| 平均 PWM | `158.64` | `152.13` |
-| 平均 RPM | `5533.54` | `4948.01` |
-| 中位 RPM | `5816` | `3647` |
-| 600 秒控制器 CPU 时间 | `0.2351 s` | `0.6536 s` |
-
-按照风扇常见近似 `风扇功耗 ~= RPM^3` 估算：
-
-- 与平均温度接近的官方 75% PWM 阶梯相比，Zone MPC 的平均风扇侧功耗指数约从 `100%` 降到 `71.5%`，理论风扇侧节省约 `28.5%`。
-- 与未缩放的原始官方阶梯相比，Zone MPC 平均 RPM 是 `4715` vs `7219`，理论风扇侧节省约 `72%`。这个对比不如上面的 75% 阶梯公平，因为原始官方阶梯更冷，但也明显更高转。
-
-这不是整机功耗电表结果，而是基于实测 RPM 的风扇侧理论估算。它适合用来比较温控策略是否在类似温度目标下减少了风扇输出。
-
 ## 项目贡献
 
 这个项目给 Raspberry Pi 5 用户提供了一条实用的预测式风扇控制路径：
@@ -173,6 +173,10 @@ T_next =
 
 ## 文件说明
 
+仓库按「运行必需」和「离线工具」分成两层：服务真正依赖的运行时放在 `src/`，建模和benchmark用的研发脚本放在 `tools/`。
+
+`src/` —— 运行时（`fan-control.service` 实际跑的就是这些）：
+
 - `fan_control.py`：实时 Zone MPC 风扇控制服务入口。
 - `fan_control_core.py`：热模型、预测观察器、Zone MPC 逻辑。
 - `fan_control_shadow.py`：旁路学习与模型的安全升级。
@@ -180,17 +184,28 @@ T_next =
 - `dashboard_server.py`：只读 HTTP 仪表盘 API 和静态文件服务。
 - `dashboard.html`：显示温度、PWM、RPM、负载的实时仪表盘。
 - `fan_safe.py`：systemd 停止后的安全兜底。
+- `fan_control_maintenance.py`：日志和实验产物清理逻辑。
+
+`tools/` —— 离线研发工具（运行服务用不到）：
+
 - `collect.py`：采集温度、PWM、负载和 RPM。
 - `fit_model.py`：从采样数据拟合模型。
 - `identify_model.py`：专门的负载/PWM 辨识实验。
+- `model_identification.py`：辨识实验调度和模型对比的公共库。
 - `compare_models.py`：模型对比报告。
 - `evaluate.py`：压力测试和控制脚本资源占用评估。
 - `random_stress_test.py`：随机压力阶段测试。
 - `ab_mpc_test.py`：在同一负载随机种子下并行跑 Zone MPC、constant MPC 和官方缩放阶梯，并生成对比图表的 AB 测试脚本。
+
+`tools/` 里每个脚本会先 `import _pathfix`，这样直接运行时能找到 `src/` 里的运行时模块。
+
+项目根目录 —— 服务单元和测试：
+
 - `fan-control.service`：主 systemd 服务模板。
 - `fan-control-dashboard.service`：监听 `8766` 端口的只读仪表盘服务。
 - `fan-control-maintenance.service`：日志和实验产物清理服务。
 - `fan-control-maintenance.timer`：每日清理定时器。
+- `tests/`：单元测试（`python3 -m pytest`）；`conftest.py` 会把 `src/` 和 `tools/` 加入导入路径。
 
 脚本启动时会自动扫描 `/sys/class/hwmon/hwmon*/name == pwmfan`，不依赖固定 `hwmonN` 编号。
 
@@ -220,7 +235,7 @@ T_next =
 主服务默认每 `30` 秒输出一次常规状态日志：
 
 ```bash
-python3 /home/pi/fan-control/fan_control.py --log-interval 30
+python3 /home/pi/fan-control/src/fan_control.py --log-interval 30
 ```
 
 重要事件仍然会立即记录：
@@ -233,8 +248,8 @@ python3 /home/pi/fan-control/fan_control.py --log-interval 30
 清理工具：
 
 ```bash
-python3 /home/pi/fan-control/fan_control_maintenance.py --dry-run
-sudo python3 /home/pi/fan-control/fan_control_maintenance.py
+python3 /home/pi/fan-control/src/fan_control_maintenance.py --dry-run
+sudo python3 /home/pi/fan-control/src/fan_control_maintenance.py
 ```
 
 默认策略：

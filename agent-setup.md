@@ -23,7 +23,7 @@
 2. 先运行不写 PWM 的 dry-run：
 
 ```bash
-python3 /home/pi/fan-control/fan_control.py --dry-run --duration 20
+python3 /home/pi/fan-control/src/fan_control.py --dry-run --duration 20
 ```
 
 3. 用户批准后再安装 service：

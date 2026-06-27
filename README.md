@@ -35,6 +35,37 @@ with the least fan effort?
 
 This controller answers that question every control interval.
 
+## Measured Result
+
+The current public story is based on a real 10 minute AB run on a Raspberry Pi 5:
+
+- Same randomized CPU-load seed for both arms.
+- Start temperature delta: `0.55 C`.
+- Target zone: `53-58 C`.
+- Baseline: official temperature ladder, with PWM scaled to `75%` so its average temperature is close to Zone MPC.
+- Raw CSV/JSON logs are excluded from the repository; the README uses curated figures only.
+
+![AB curves comparing scaled official fan steps with Zone MPC](docs/assets/scaled_official_vs_zone_mpc_curves.svg)
+
+![Summary of fan effort and theoretical fan-side power saving](docs/assets/readme_power_savings_summary.svg)
+
+| Metric | Scaled official step | Zone MPC |
+|---|---:|---:|
+| Mean temperature | `57.88 C` | `57.99 C` |
+| Peak temperature | `61.70 C` | `62.25 C` |
+| Seconds above `58 C` | `287.71 s` | `268.76 s` |
+| Average PWM | `158.64` | `152.13` |
+| Average RPM | `5533.54` | `4948.01` |
+| Median RPM | `5816` | `3647` |
+| Controller CPU time over 600 s | `0.2351 s` | `0.6536 s` |
+
+Using the common fan affinity approximation `fan power ~= RPM^3`, the AB run estimates:
+
+- Against the temperature-matched scaled official ladder: average fan-side power index dropped from `100%` to about `71.5%`, or roughly `28.5%` theoretical fan-side saving.
+- Against the original unscaled official ladder from the comparison run: average RPM was `4715` vs `7219`, giving a theoretical fan-side saving of about `72%`. That comparison is intentionally labeled less fair because the original ladder also ran cooler and louder.
+
+This is not a whole-system wattmeter measurement. It is a fan-side theoretical estimate from measured RPM, useful for comparing control policies with similar thermal targets.
+
 ## Quick Install
 
 Clone the project to the expected runtime path:
@@ -48,7 +79,7 @@ cd /home/pi/fan-control
 Run a no-write dry check first:
 
 ```bash
-python3 /home/pi/fan-control/fan_control.py --dry-run --duration 20
+python3 /home/pi/fan-control/src/fan_control.py --dry-run --duration 20
 ```
 
 Install and start the service:
@@ -126,37 +157,6 @@ It prefers:
 
 It also includes a conservative prediction observer. If the model has recently underpredicted temperature, the controller adds a bounded prediction margin, so future MPC scoring becomes more cautious.
 
-## Measured Result
-
-The current public story is based on a real 10 minute AB run on a Raspberry Pi 5:
-
-- Same randomized CPU-load seed for both arms.
-- Start temperature delta: `0.55 C`.
-- Target zone: `53-58 C`.
-- Baseline: official temperature ladder, with PWM scaled to `75%` so its average temperature is close to Zone MPC.
-- Raw CSV/JSON logs are excluded from the repository; the README uses curated figures only.
-
-![AB curves comparing scaled official fan steps with Zone MPC](docs/assets/scaled_official_vs_zone_mpc_curves.svg)
-
-![Summary of fan effort and theoretical fan-side power saving](docs/assets/readme_power_savings_summary.svg)
-
-| Metric | Scaled official step | Zone MPC |
-|---|---:|---:|
-| Mean temperature | `57.88 C` | `57.99 C` |
-| Peak temperature | `61.70 C` | `62.25 C` |
-| Seconds above `58 C` | `287.71 s` | `268.76 s` |
-| Average PWM | `158.64` | `152.13` |
-| Average RPM | `5533.54` | `4948.01` |
-| Median RPM | `5816` | `3647` |
-| Controller CPU time over 600 s | `0.2351 s` | `0.6536 s` |
-
-Using the common fan affinity approximation `fan power ~= RPM^3`, the AB run estimates:
-
-- Against the temperature-matched scaled official ladder: average fan-side power index dropped from `100%` to about `71.5%`, or roughly `28.5%` theoretical fan-side saving.
-- Against the original unscaled official ladder from the comparison run: average RPM was `4715` vs `7219`, giving a theoretical fan-side saving of about `72%`. That comparison is intentionally labeled less fair because the original ladder also ran cooler and louder.
-
-This is not a whole-system wattmeter measurement. It is a fan-side theoretical estimate from measured RPM, useful for comparing control policies with similar thermal targets.
-
 ## Core Contribution
 
 This project contributes a practical predictive fan-control path for Raspberry Pi 5 users:
@@ -170,6 +170,10 @@ This project contributes a practical predictive fan-control path for Raspberry P
 
 ## Files
 
+The repository is split into the runtime that the service needs and the offline tooling used to build models and benchmark policies.
+
+`src/` — runtime (what `fan-control.service` actually runs):
+
 - `fan_control.py`: live ARX2 Zone MPC controller.
 - `fan_control_core.py`: thermal models, ARX2 fitting, prediction observer, Zone MPC.
 - `fan_control_shadow.py`: shadow learning and safe model promotion.
@@ -177,17 +181,28 @@ This project contributes a practical predictive fan-control path for Raspberry P
 - `dashboard_server.py`: read-only HTTP dashboard API and static file server.
 - `dashboard.html`: live dashboard for temperature, PWM, RPM, and load.
 - `fan_safe.py`: systemd stop-post fallback.
+- `fan_control_maintenance.py`: journal and experiment-artifact cleanup.
+
+`tools/` — offline research and dev tooling (not required to run the service):
+
 - `collect.py`: data collection.
 - `fit_model.py`: ARX2 model fitting from collected samples.
 - `identify_model.py`: dedicated load/PWM identification experiment.
+- `model_identification.py`: identification schedule and model-comparison library.
 - `compare_models.py`: model comparison report generator.
 - `evaluate.py`: pressure test and controller overhead measurement.
 - `random_stress_test.py`: randomized pressure phases with prediction metrics.
 - `ab_mpc_test.py`: side-by-side AB test that drives Zone MPC, constant MPC, and the scaled official ladder under the same load seed, and renders the comparison figures.
+
+Each `tools/` script imports `_pathfix` first so the `src/` runtime modules resolve when it is launched directly.
+
+Project root — service units and tests:
+
 - `fan-control.service`: systemd service template.
 - `fan-control-dashboard.service`: read-only dashboard service on port `8766`.
 - `fan-control-maintenance.service`: cleanup service for journal and experiment artifacts.
 - `fan-control-maintenance.timer`: daily cleanup timer.
+- `tests/`: unit tests (`python3 -m pytest`); `conftest.py` puts `src/` and `tools/` on the import path.
 
 The scripts auto-discover the current `/sys/class/hwmon/hwmon*/name == pwmfan` device at startup, so they do not depend on the `hwmonN` number staying fixed across reboots.
 
@@ -196,7 +211,7 @@ The scripts auto-discover the current `/sys/class/hwmon/hwmon*/name == pwmfan` d
 Run without touching PWM:
 
 ```bash
-python3 /home/pi/fan-control/fan_control.py --dry-run --duration 20
+python3 /home/pi/fan-control/src/fan_control.py --dry-run --duration 20
 ```
 
 Expected log fields include:
@@ -215,7 +230,7 @@ reason=...
 Run the controller for two minutes:
 
 ```bash
-sudo python3 /home/pi/fan-control/fan_control.py --duration 120
+sudo python3 /home/pi/fan-control/src/fan_control.py --duration 120
 ```
 
 The controller restores automatic fan mode on exit.
@@ -256,7 +271,7 @@ The sample log rotates to one `.1` file, so long-running learning data does not 
 The live controller no longer writes routine journal logs every control interval. By default, `fan_control.py` logs one routine status line every `30` seconds:
 
 ```bash
-python3 /home/pi/fan-control/fan_control.py --log-interval 30
+python3 /home/pi/fan-control/src/fan_control.py --log-interval 30
 ```
 
 Important events still log immediately:
@@ -276,8 +291,8 @@ LogRateLimitBurst=120
 Cleanup is handled by `fan_control_maintenance.py`. The default policy keeps recent artifacts and removes older experiment output:
 
 ```bash
-python3 /home/pi/fan-control/fan_control_maintenance.py --dry-run
-sudo python3 /home/pi/fan-control/fan_control_maintenance.py
+python3 /home/pi/fan-control/src/fan_control_maintenance.py --dry-run
+sudo python3 /home/pi/fan-control/src/fan_control_maintenance.py
 ```
 
 Default retention:
@@ -293,15 +308,15 @@ Note: journal vacuum is global to systemd-journald, not per service. The control
 For a quick local fit from collected samples:
 
 ```bash
-python3 /home/pi/fan-control/collect.py --duration 600 --interval 2
-python3 /home/pi/fan-control/fit_model.py
+python3 /home/pi/fan-control/tools/collect.py --duration 600 --interval 2
+python3 /home/pi/fan-control/tools/fit_model.py
 ```
 
 For a better model, use the dedicated identification experiment:
 
 ```bash
-sudo python3 /home/pi/fan-control/identify_model.py
-python3 /home/pi/fan-control/compare_models.py --input /home/pi/fan-control/data/identification/<run>/samples.csv
+sudo python3 /home/pi/fan-control/tools/identify_model.py
+python3 /home/pi/fan-control/tools/compare_models.py --input /home/pi/fan-control/data/identification/<run>/samples.csv
 ```
 
 The model selection rule is intentionally conservative:
@@ -317,19 +332,19 @@ The model selection rule is intentionally conservative:
 Run a short pressure test and overhead measurement:
 
 ```bash
-sudo python3 /home/pi/fan-control/evaluate.py --duration 90 --workers 4
+sudo python3 /home/pi/fan-control/tools/evaluate.py --duration 90 --workers 4
 ```
 
 Run randomized pressure phases:
 
 ```bash
-python3 /home/pi/fan-control/random_stress_test.py --duration 660 --interval 2 --min-phase 20 --max-phase 75 --max-workers 4 --model /home/pi/fan-control/data/model_arx2_m2.json
+python3 /home/pi/fan-control/tools/random_stress_test.py --duration 660 --interval 2 --min-phase 20 --max-phase 75 --max-workers 4 --model /home/pi/fan-control/data/model_arx2_m2.json
 ```
 
 For a no-write check:
 
 ```bash
-python3 /home/pi/fan-control/evaluate.py --duration 30 --workers 2 --dry-run
+python3 /home/pi/fan-control/tools/evaluate.py --duration 30 --workers 2 --dry-run
 ```
 
 ## Service
@@ -362,7 +377,7 @@ Disable the user-space service and set a safe fallback PWM:
 sudo systemctl disable --now fan-control.service
 sudo systemctl disable --now fan-control-dashboard.service
 sudo systemctl disable --now fan-control-maintenance.timer
-sudo python3 /home/pi/fan-control/fan_safe.py
+sudo python3 /home/pi/fan-control/src/fan_safe.py
 ```
 
 ## Dashboard

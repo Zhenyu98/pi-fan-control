@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import _pathfix  # noqa: F401  # adds ../src to sys.path; must precede src imports
+
 import math
 import statistics
 from dataclasses import dataclass

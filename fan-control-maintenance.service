@@ -3,7 +3,7 @@ Description=Raspberry Pi 5 Fan Control Maintenance
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 /home/pi/fan-control/fan_control_maintenance.py --artifact-retention-days 14 --keep-latest 5 --journal-vacuum-time 14d --journal-vacuum-size 200M
+ExecStart=/usr/bin/python3 /home/pi/fan-control/src/fan_control_maintenance.py --artifact-retention-days 14 --keep-latest 5 --journal-vacuum-time 14d --journal-vacuum-size 200M
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=fan-control-maintenance

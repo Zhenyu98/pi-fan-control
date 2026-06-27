@@ -48,7 +48,7 @@ class DashboardServerTests(unittest.TestCase):
         self.assertNotIn("fan_control.py", unit)
 
     def test_dashboard_html_displays_53_58_target_zone(self):
-        html = (Path(__file__).resolve().parents[1] / "dashboard.html").read_text(encoding="utf-8")
+        html = (Path(__file__).resolve().parents[1] / "src" / "dashboard.html").read_text(encoding="utf-8")
 
         self.assertIn("53-58", html)
         self.assertIn("Samples above 58", html)

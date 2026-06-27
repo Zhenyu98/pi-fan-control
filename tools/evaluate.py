@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import _pathfix  # noqa: F401  # adds ../src to sys.path; must precede src imports
+
 import argparse
 import json
 import math
@@ -50,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--duration", type=float, default=90.0)
     parser.add_argument("--interval", type=float, default=2.0)
     parser.add_argument("--workers", type=int, default=max(1, min(4, os.cpu_count() or 1)))
-    parser.add_argument("--controller", default="/home/pi/fan-control/fan_control.py")
+    parser.add_argument("--controller", default="/home/pi/fan-control/src/fan_control.py")
     parser.add_argument("--output-dir", default="/home/pi/fan-control/data")
     parser.add_argument("--dry-run", action="store_true", help="Do not write PWM during evaluation")
     parser.add_argument("--control-mode", choices=("zone-mpc",), default="zone-mpc")
