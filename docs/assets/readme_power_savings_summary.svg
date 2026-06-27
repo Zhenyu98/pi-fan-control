@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
+  <title id="title">Raspberry Pi 5 fan-control AB summary</title>
+  <desc id="desc">Scaled official fan steps and Zone MPC had similar mean temperature, while Zone MPC used lower average RPM and a lower theoretical fan power index.</desc>
+  <rect width="960" height="520" fill="#ffffff"/>
+  <text x="40" y="50" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#111827">Zone MPC keeps similar temperature with less fan effort</text>
+  <text x="40" y="82" font-family="Arial, sans-serif" font-size="15" fill="#4b5563">10 minute randomized CPU-load AB test, same seed, start temperature delta 0.55 C, zone 53-58 C.</text>
+
+  <g transform="translate(40 120)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#111827">Scaled official step</text>
+    <text x="0" y="28" font-family="Arial, sans-serif" font-size="14" fill="#4b5563">Official thresholds with PWM scaled to 75%</text>
+    <text x="0" y="70" font-family="Arial, sans-serif" font-size="38" font-weight="700" fill="#111827">57.88 C</text>
+    <text x="0" y="96" font-family="Arial, sans-serif" font-size="14" fill="#4b5563">mean temperature</text>
+  </g>
+
+  <g transform="translate(520 120)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0f766e">Zone MPC</text>
+    <text x="0" y="28" font-family="Arial, sans-serif" font-size="14" fill="#4b5563">Predictive segmented planning</text>
+    <text x="0" y="70" font-family="Arial, sans-serif" font-size="38" font-weight="700" fill="#0f766e">57.99 C</text>
+    <text x="0" y="96" font-family="Arial, sans-serif" font-size="14" fill="#4b5563">mean temperature</text>
+  </g>
+
+  <g transform="translate(40 250)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">Average RPM</text>
+    <rect x="0" y="24" width="520" height="34" rx="4" fill="#111827"/>
+    <rect x="0" y="78" width="465" height="34" rx="4" fill="#0f766e"/>
+    <text x="536" y="48" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">5534</text>
+    <text x="481" y="102" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#0f766e">4948</text>
+    <text x="0" y="136" font-family="Arial, sans-serif" font-size="14" fill="#0f766e">Zone MPC: 10.6% lower average RPM</text>
+  </g>
+
+  <g transform="translate(40 410)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">Fan power index, using power proportional to RPM^3</text>
+    <rect x="0" y="24" width="520" height="34" rx="4" fill="#111827"/>
+    <rect x="0" y="78" width="372" height="34" rx="4" fill="#c2410c"/>
+    <text x="536" y="48" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">100%</text>
+    <text x="388" y="102" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#c2410c">71.5%</text>
+  </g>
+
+  <g transform="translate(700 256)">
+    <rect x="0" y="0" width="220" height="170" rx="8" fill="#f3f4f6" stroke="#d1d5db"/>
+    <text x="20" y="34" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#111827">Estimated fan-side saving</text>
+    <text x="20" y="88" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#c2410c">28.5%</text>
+    <text x="20" y="122" font-family="Arial, sans-serif" font-size="13" fill="#4b5563">Theoretical approximation,</text>
+    <text x="20" y="142" font-family="Arial, sans-serif" font-size="13" fill="#4b5563">not whole-system power.</text>
+  </g>
+
+  <text x="40" y="500" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Source: acceptance/ab-mpc-20260627-020638. Raw CSV/JSON logs are intentionally excluded from the public repository.</text>
+</svg>

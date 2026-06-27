@@ -19,6 +19,9 @@ class CliStandardizationTests(unittest.TestCase):
         self.assertEqual(args.max_step, 20)
         self.assertEqual(args.idle_stop, 50.0)
         self.assertEqual(args.log_interval, 30.0)
+        self.assertEqual(args.mpc_plan_mode, "constant")
+        self.assertEqual(args.mpc_segments, 3)
+        self.assertEqual(args.mpc_segment_candidate_step, 20)
 
     def test_systemd_service_uses_safer_zone_target(self):
         service = Path(__file__).resolve().parents[1] / "fan-control.service"

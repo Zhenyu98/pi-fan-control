@@ -345,6 +345,8 @@ class ZoneMpcDecision:
     violation_area_c_steps: float
     reason: str
     cost: float
+    plan_mode: str
+    planned_pwms: list[int]
 
 
 @dataclass
@@ -364,13 +366,16 @@ class ZoneMpcController:
     candidate_pwm_step: int = 5
     over_temp_weight: float = 160.0
     under_temp_weight: float = 0.1
-    pwm_weight: float = 0.35
+    pwm_weight: float = 1.2
     step_weight: float = 0.25
     full_temp_weight: float = 500.0
     sustained_violation_weight: float = 35.0
     terminal_violation_weight: float = 120.0
-    max_temp_62_weight: float = 240.0
+    max_temp_62_weight: float = 160.0
     max_temp_65_weight: float = 900.0
+    plan_mode: str = "constant"
+    segments: int = 3
+    segment_candidate_step: int = 20
 
     def __post_init__(self) -> None:
         if self.zone_low_temp_c >= self.zone_high_temp_c:
@@ -385,6 +390,12 @@ class ZoneMpcController:
             raise ValueError("candidate_pwm_step must be positive")
         if self.max_pwm_step < 1:
             raise ValueError("max_pwm_step must be positive")
+        if self.plan_mode not in {"constant", "segmented"}:
+            raise ValueError("plan_mode must be 'constant' or 'segmented'")
+        if self.segments < 1:
+            raise ValueError("segments must be positive")
+        if self.segment_candidate_step < 1:
+            raise ValueError("segment_candidate_step must be positive")
 
     def next_pwm(self, temp_c: float, load: float, current_pwm: int) -> int:
         return self.decide(temp_c=temp_c, load=load, current_pwm=current_pwm).pwm
@@ -409,6 +420,8 @@ class ZoneMpcController:
                 violation_area_c_steps=max(0.0, temp_c - self.zone_high_temp_c),
                 reason="safety_temp",
                 cost=0.0,
+                plan_mode=self.plan_mode,
+                planned_pwms=self._fallback_plan(pwm),
             )
         if temp_c >= self.full_temp_c:
             return ZoneMpcDecision(
@@ -419,6 +432,8 @@ class ZoneMpcController:
                 violation_area_c_steps=max(0.0, temp_c - self.zone_high_temp_c),
                 reason="full_temp",
                 cost=0.0,
+                plan_mode=self.plan_mode,
+                planned_pwms=self._fallback_plan(self.max_pwm),
             )
         if temp_c <= self.idle_stop_temp_c and current_pwm <= self.min_active_pwm:
             return ZoneMpcDecision(
@@ -429,10 +444,25 @@ class ZoneMpcController:
                 violation_area_c_steps=0.0,
                 reason="idle_stop",
                 cost=0.0,
+                plan_mode=self.plan_mode,
+                planned_pwms=self._fallback_plan(0),
             )
 
         load = clamp(load, 0.0, 1.0)
         margin = clamp(prediction_margin_c, 0.0, 3.0)
+        previous_temp = temp_c if prev_temp_c is None else prev_temp_c
+        previous_pwm = current_pwm if prev_pwm is None else prev_pwm
+        previous_load = load if prev_load is None else prev_load
+        if self.plan_mode == "segmented":
+            return self._segmented_decision(
+                temp_c=temp_c,
+                load=load,
+                current_pwm=current_pwm,
+                prediction_margin_c=margin,
+                prev_temp_c=previous_temp,
+                prev_pwm=previous_pwm,
+                prev_load=previous_load,
+            )
         candidates = self._candidate_pwms(current_pwm)
         return min(
             (
@@ -442,19 +472,67 @@ class ZoneMpcController:
                     pwm=candidate,
                     current_pwm=current_pwm,
                     prediction_margin_c=margin,
-                    prev_temp_c=temp_c if prev_temp_c is None else prev_temp_c,
-                    prev_pwm=current_pwm if prev_pwm is None else prev_pwm,
-                    prev_load=load if prev_load is None else prev_load,
+                    prev_temp_c=previous_temp,
+                    prev_pwm=previous_pwm,
+                    prev_load=previous_load,
                 )
                 for candidate in candidates
             ),
             key=lambda decision: (decision.cost, decision.pwm),
         )
 
-    def _candidate_pwms(self, current_pwm: int) -> list[int]:
+    def _fallback_plan(self, pwm: int) -> list[int]:
+        if self.plan_mode == "segmented":
+            return [pwm for _ in range(self.segments)]
+        return [pwm]
+
+    def _candidate_pwms(self, current_pwm: int, candidate_step: int | None = None) -> list[int]:
+        step = self.candidate_pwm_step if candidate_step is None else candidate_step
         desired_values = {0, current_pwm, self.min_active_pwm, self.max_pwm}
-        desired_values.update(range(self.min_active_pwm, self.max_pwm + 1, self.candidate_pwm_step))
+        desired_values.update(range(self.min_active_pwm, self.max_pwm + 1, step))
         return sorted({self._limit_pwm_step(desired, current_pwm) for desired in desired_values})
+
+    def _segment_lengths(self) -> list[int]:
+        segments = min(self.segments, self.horizon_steps)
+        base = self.horizon_steps // segments
+        remainder = self.horizon_steps % segments
+        return [base + (1 if index < remainder else 0) for index in range(segments)]
+
+    def _segmented_decision(
+        self,
+        temp_c: float,
+        load: float,
+        current_pwm: int,
+        prediction_margin_c: float,
+        prev_temp_c: float,
+        prev_pwm: int,
+        prev_load: float,
+    ) -> ZoneMpcDecision:
+        plans: list[tuple[int, ...]] = [()]
+        for _ in self._segment_lengths():
+            expanded: list[tuple[int, ...]] = []
+            for plan in plans:
+                base_pwm = current_pwm if not plan else plan[-1]
+                for candidate in self._candidate_pwms(base_pwm, self.segment_candidate_step):
+                    expanded.append((*plan, candidate))
+            plans = expanded
+
+        return min(
+            (
+                self._trajectory_plan_decision(
+                    temp_c=temp_c,
+                    load=load,
+                    planned_pwms=list(plan),
+                    current_pwm=current_pwm,
+                    prediction_margin_c=prediction_margin_c,
+                    prev_temp_c=prev_temp_c,
+                    prev_pwm=prev_pwm,
+                    prev_load=prev_load,
+                )
+                for plan in plans
+            ),
+            key=lambda decision: (decision.cost, decision.pwm, decision.planned_pwms),
+        )
 
     def _limit_pwm_step(self, desired_pwm: int, current_pwm: int) -> int:
         desired = int(round(clamp(float(desired_pwm), self.min_pwm, self.max_pwm)))
@@ -466,7 +544,9 @@ class ZoneMpcController:
         high = min(self.max_pwm, current + self.max_pwm_step)
         limited = int(clamp(float(desired), low, high))
         if 0 < limited < self.min_active_pwm:
-            return self.min_active_pwm if desired > 0 else 0
+            if desired == 0:
+                return 0 if current <= self.max_pwm_step else self.min_active_pwm
+            return self.min_active_pwm
         return limited
 
     def _trajectory_decision(
@@ -480,17 +560,50 @@ class ZoneMpcController:
         prev_pwm: int,
         prev_load: float,
     ) -> ZoneMpcDecision:
+        decision = self._trajectory_plan_decision(
+            temp_c=temp_c,
+            load=load,
+            planned_pwms=[pwm],
+            current_pwm=current_pwm,
+            prediction_margin_c=prediction_margin_c,
+            prev_temp_c=prev_temp_c,
+            prev_pwm=prev_pwm,
+            prev_load=prev_load,
+        )
+        decision.plan_mode = "constant"
+        decision.planned_pwms = [pwm]
+        return decision
+
+    def _trajectory_plan_decision(
+        self,
+        temp_c: float,
+        load: float,
+        planned_pwms: list[int],
+        current_pwm: int,
+        prediction_margin_c: float,
+        prev_temp_c: float,
+        prev_pwm: int,
+        prev_load: float,
+    ) -> ZoneMpcDecision:
         temp = temp_c
         previous_temp = prev_temp_c
         previous_pwm = float(prev_pwm)
         previous_load = prev_load
-        cost = self.step_weight * ((pwm - current_pwm) / max(1.0, float(self.max_pwm_step))) ** 2
-        normalized_pwm = pwm / max(1.0, float(self.max_pwm))
+        cost = self.step_weight * ((planned_pwms[0] - current_pwm) / max(1.0, float(self.max_pwm_step))) ** 2
+        for previous_segment_pwm, next_segment_pwm in zip(planned_pwms, planned_pwms[1:]):
+            cost += self.step_weight * (
+                (next_segment_pwm - previous_segment_pwm) / max(1.0, float(self.max_pwm_step))
+            ) ** 2
         predicted_max = temp_c
         violation_steps = 0
         violation_area = 0.0
 
-        for _ in range(self.horizon_steps):
+        pwm_by_step: list[int] = []
+        segment_lengths = [self.horizon_steps] if len(planned_pwms) == 1 else self._segment_lengths()
+        for pwm, segment_length in zip(planned_pwms, segment_lengths):
+            pwm_by_step.extend([pwm] * segment_length)
+
+        for pwm in pwm_by_step:
             next_temp = self.model.predict_with_state(
                 temp_c=temp,
                 pwm=pwm,
@@ -514,6 +627,7 @@ class ZoneMpcController:
             cost += self.over_temp_weight * above * above
             cost += self.under_temp_weight * below * below
             cost += self.full_temp_weight * full_excess * full_excess
+            normalized_pwm = pwm / max(1.0, float(self.max_pwm))
             cost += self.pwm_weight * normalized_pwm * normalized_pwm
 
         terminal_temp = temp + prediction_margin_c
@@ -527,13 +641,15 @@ class ZoneMpcController:
         cost += self.max_temp_65_weight * max_over_65 * max_over_65
 
         return ZoneMpcDecision(
-            pwm=pwm,
+            pwm=planned_pwms[0],
             predicted_max_temp_c=predicted_max,
             terminal_temp_c=terminal_temp,
             violation_steps=violation_steps,
             violation_area_c_steps=violation_area,
             reason=self._reason(predicted_max, terminal_temp, violation_steps, violation_area),
             cost=cost,
+            plan_mode="segmented" if len(planned_pwms) > 1 else "constant",
+            planned_pwms=planned_pwms,
         )
 
     def _trajectory_cost(self, temp_c: float, load: float, pwm: int, current_pwm: int) -> float:

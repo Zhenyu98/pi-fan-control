@@ -28,6 +28,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--full-temp", type=float, default=69.0, help="Zone MPC full-speed threshold in Celsius")
     parser.add_argument("--mpc-horizon", type=int, default=12, help="Zone MPC prediction horizon in control steps")
     parser.add_argument("--mpc-candidate-step", type=int, default=5, help="Zone MPC PWM candidate spacing")
+    parser.add_argument("--mpc-plan-mode", choices=("constant", "segmented"), default="constant")
+    parser.add_argument("--mpc-segments", type=int, default=3)
+    parser.add_argument("--mpc-segment-candidate-step", type=int, default=20)
     parser.add_argument("--interval", type=float, default=2.0)
     parser.add_argument("--duration", type=float, default=0.0, help="0 means run until stopped")
     parser.add_argument("--max-step", type=int, default=20)
@@ -70,6 +73,9 @@ def build_controller(args: argparse.Namespace, model: ThermalPredictor) -> ZoneM
         safety_pwm=args.safety_pwm,
         horizon_steps=args.mpc_horizon,
         candidate_pwm_step=args.mpc_candidate_step,
+        plan_mode=args.mpc_plan_mode,
+        segments=args.mpc_segments,
+        segment_candidate_step=args.mpc_segment_candidate_step,
     )
 
 
@@ -202,7 +208,8 @@ def main() -> int:
             ):
                 log_line = (
                     f"temp={temp_c:.2f}C load={load:.2f} pwm={current_pwm}->{next_pwm} "
-                    f"rpm={rpm} mode={args.control_mode} {control_label(args)} "
+                    f"rpm={rpm} mode={args.control_mode} plan_mode={mpc_decision.plan_mode} "
+                    f"{control_label(args)} "
                     f"pred_error={_format_optional(prediction_stats.pred_error_c)}C "
                     f"bias_ewma={prediction_stats.bias_ewma_c:.3f}C "
                     f"rmse_ewma={prediction_stats.rmse_ewma_c:.3f}C "
@@ -215,6 +222,8 @@ def main() -> int:
                     f"violation_area={mpc_decision.violation_area_c_steps:.2f} "
                     f"reason={mpc_decision.reason}"
                 )
+                if mpc_decision.plan_mode == "segmented":
+                    log_line += f" plan={mpc_decision.planned_pwms}"
                 print(log_line, flush=True)
                 last_log_monotonic = now_monotonic
             prev_temp_c = temp_c

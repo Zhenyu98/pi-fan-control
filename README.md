@@ -124,31 +124,45 @@ It also includes a conservative prediction observer. If the model has recently u
 
 ## Measured Result
 
-Historical randomized 11 minute stress test with the earlier `50-60 C` zone:
+The current public story is based on a real 10 minute AB run on a Raspberry Pi 5:
 
-```text
-Run: /home/pi/fan-control/acceptance/random-stress-20260626-123759
-Model: /home/pi/fan-control/data/model_arx2_m2.json
-```
+- Same randomized CPU-load seed for both arms.
+- Start temperature delta: `0.55 C`.
+- Target zone: `53-58 C`.
+- Baseline: official temperature ladder, with PWM scaled to `75%` so its average temperature is close to Zone MPC.
+- Raw CSV/JSON logs are excluded from the repository; the README uses curated figures only.
 
-Summary:
+![AB curves comparing scaled official fan steps with Zone MPC](docs/assets/scaled_official_vs_zone_mpc_curves.svg)
 
-- Temperature min/mean/max: `46.85 / 55.34 / 61.15 C`
-- Samples above `60 C`: `10.89%`
-- Max overshoot above `60 C`: `1.15 C`
-- Samples at or above `69 C`: `0`
-- Samples at or above `70 C`: `0`
-- One-step prediction MAE/RMSE/Bias: `0.65 / 1.00 / 0.02 C`
-- Controller CPU use: `0.045%` of one core
-- Max RSS: `14528 KiB`
-- Service restart delta: `0`
-- Journal warnings: `0`
+![Summary of fan effort and theoretical fan-side power saving](docs/assets/readme_power_savings_summary.svg)
 
-Detailed report:
+| Metric | Scaled official step | Zone MPC |
+|---|---:|---:|
+| Mean temperature | `57.88 C` | `57.99 C` |
+| Peak temperature | `61.70 C` | `62.25 C` |
+| Seconds above `58 C` | `287.71 s` | `268.76 s` |
+| Average PWM | `158.64` | `152.13` |
+| Average RPM | `5533.54` | `4948.01` |
+| Median RPM | `5816` | `3647` |
+| Controller CPU time over 600 s | `0.2351 s` | `0.6536 s` |
 
-```text
-/home/pi/fan-control/acceptance/arx2_zone_mpc_acceptance_20260626.md
-```
+Using the common fan affinity approximation `fan power ~= RPM^3`, the AB run estimates:
+
+- Against the temperature-matched scaled official ladder: average fan-side power index dropped from `100%` to about `71.5%`, or roughly `28.5%` theoretical fan-side saving.
+- Against the original unscaled official ladder from the comparison run: average RPM was `4715` vs `7219`, giving a theoretical fan-side saving of about `72%`. That comparison is intentionally labeled less fair because the original ladder also ran cooler and louder.
+
+This is not a whole-system wattmeter measurement. It is a fan-side theoretical estimate from measured RPM, useful for comparing control policies with similar thermal targets.
+
+## Core Contribution
+
+This project contributes a practical predictive fan-control path for Raspberry Pi 5 users:
+
+- A controller that plans ahead instead of only reacting after a threshold is crossed.
+- A zone target that makes the behavior easier to tune than a single fixed setpoint.
+- Conservative prediction margins and high-temperature penalties to avoid systematic undercooling.
+- Shadow learning that can improve the model without letting unvalidated models directly control the fan.
+- A public, repeatable AB test script for comparing Zone MPC, constant MPC, and official-step policies.
+- Evidence that, at a similar thermal target, Zone MPC can reduce fan-side theoretical power by about `28.5%` in the current AB run while keeping controller CPU overhead effectively negligible.
 
 ## Files
 

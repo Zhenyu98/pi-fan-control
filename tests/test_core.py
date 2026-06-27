@@ -53,6 +53,21 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(controller.min_active_pwm, 75)
         self.assertEqual(controller.max_pwm_step, 20)
         self.assertEqual(controller.safety_temp_c, 70.0)
+        self.assertEqual(controller.pwm_weight, 1.2)
+        self.assertEqual(controller.max_temp_62_weight, 160.0)
+
+    def test_candidate_pwm_respects_max_step_when_ramping_down_to_zero(self):
+        controller = ZoneMpcController(
+            model=ThermalModel.default(),
+            min_active_pwm=75,
+            max_pwm_step=20,
+        )
+
+        candidates = controller._candidate_pwms(75)
+
+        self.assertNotIn(0, candidates)
+        self.assertTrue(all(candidate == 0 or candidate >= 75 for candidate in candidates))
+        self.assertTrue(all(abs(candidate - 75) <= 20 for candidate in candidates))
 
     def test_zone_mpc_starts_fan_when_temperature_exceeds_zone(self):
         model = ThermalModel(a=0.96, b=-0.025, c=0.8, d=1.2)
@@ -265,6 +280,60 @@ class CoreTests(unittest.TestCase):
         )
 
         self.assertLess(cooler_history.terminal_temp_c, hotter_history.terminal_temp_c)
+
+    def test_constant_plan_mode_keeps_single_pwm_plan(self):
+        controller = ZoneMpcController(
+            model=ThermalModel(a=1.0, b=-0.03, c=1.8, d=0.3),
+            zone_low_temp_c=53.0,
+            zone_high_temp_c=58.0,
+            max_pwm_step=20,
+            min_active_pwm=75,
+            plan_mode="constant",
+        )
+
+        decision = controller.decide(temp_c=57.0, load=1.0, current_pwm=95)
+
+        self.assertEqual(decision.plan_mode, "constant")
+        self.assertEqual(decision.planned_pwms, [decision.pwm])
+
+    def test_segmented_plan_mode_can_plan_future_pwm_moves(self):
+        controller = ZoneMpcController(
+            model=ThermalModel(a=0.96, b=-0.008, c=1.0, d=2.0),
+            zone_low_temp_c=53.0,
+            zone_high_temp_c=58.0,
+            full_temp_c=69.0,
+            safety_temp_c=70.0,
+            max_pwm_step=20,
+            min_active_pwm=75,
+            horizon_steps=12,
+            candidate_pwm_step=5,
+            plan_mode="segmented",
+            segments=3,
+            segment_candidate_step=20,
+        )
+        constant_controller = ZoneMpcController(
+            model=controller.model,
+            zone_low_temp_c=53.0,
+            zone_high_temp_c=58.0,
+            full_temp_c=69.0,
+            safety_temp_c=70.0,
+            max_pwm_step=20,
+            min_active_pwm=75,
+            horizon_steps=12,
+            candidate_pwm_step=5,
+            plan_mode="constant",
+        )
+
+        segmented = controller.decide(temp_c=59.0, load=1.0, current_pwm=75)
+        constant = constant_controller.decide(temp_c=59.0, load=1.0, current_pwm=75)
+
+        self.assertEqual(segmented.plan_mode, "segmented")
+        self.assertEqual(len(segmented.planned_pwms), 3)
+        self.assertEqual(segmented.pwm, segmented.planned_pwms[0])
+        self.assertGreater(max(segmented.planned_pwms), segmented.planned_pwms[0])
+        self.assertGreaterEqual(segmented.pwm, constant.pwm)
+        self.assertLessEqual(segmented.terminal_temp_c, constant.terminal_temp_c)
+        self.assertLessEqual(segmented.cost, constant.cost)
 
 
 if __name__ == "__main__":
